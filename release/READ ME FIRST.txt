@@ -30,7 +30,7 @@ Qual Coder needs Python 3.8 or newer.
            it again.
 
 A window full of text opens, and then Qual Coder opens in your browser at
-http://127.0.0.1:4350 (Chrome, Edge, Safari or Firefox). Leave that window
+http://localhost:4350 (Chrome, Edge, Safari or Firefox). Leave that window
 open while you work. Close it to stop Qual Coder.
 
 If double-clicking doesn't work, open Terminal (Mac) or Command Prompt
@@ -50,8 +50,7 @@ be exported as a single file (Export > Full project file). That file is how
 you back a project up or share it with someone else, who imports it from
 the Qual Coder home screen.
 
-Keep research data only where your IRB protocol and course allow it to be
-stored.
+Keep research data only where your IRB protocol allows it to be stored.
 
 
 4. GETTING A NEWER VERSION
@@ -64,9 +63,19 @@ separate, so your work isn't touched.
 
 Word (.docx), text (.txt, .md), Zoom or Teams captions (.vtt, .srt), RTF,
 a spreadsheet saved as .csv (one row per document, such as survey
-answers), or pasted text. For a Google Doc, use File > Download > .docx.
-PDFs need an extra free tool (pdftotext), so it's easier to save a PDF as
-.docx or copy and paste its text.
+answers), a .zip of any of these, or pasted text. PDFs need an extra free
+tool (pdftotext), so it's easier to save a PDF as .docx or copy and paste
+its text.
+
+Google Docs, two ways:
+  - Drive download (always works): in Google Drive, select the documents
+    or a whole folder, right-click > Download. Drive saves a .zip with
+    each Google Doc as a Word file. In Qual Coder, choose + Add > Files and
+    pick that .zip; every document in it is added.
+  - Google sign-in (ASU Google accounts): + Add > Google Drive > Choose
+    from Google Drive. The first time, sign in with your ASU account and
+    click Allow. Then pick documents in Google's own window. Qual Coder can
+    open only the documents you pick, and nothing else in your Drive.
 
 
 6. OPTIONAL: AI SUGGESTIONS (LOCAL ONLY, OFF BY DEFAULT)
@@ -74,9 +83,6 @@ PDFs need an extra free tool (pdftotext), so it's easier to save a PDF as
 Qual Coder can ask an AI model running on your own computer to suggest
 codes. Nothing is sent over the internet. You accept or reject every
 suggestion, and accepted ones are labeled AI in all exports.
-
-Check your course and IRB rules first. Some courses don't allow
-AI-assisted coding at all, even with a local model.
 
 To use it:
   a. Install Ollama from https://ollama.com/download and open it.
