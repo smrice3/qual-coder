@@ -33,7 +33,13 @@ def main() -> None:
         add(z, ROOT / "release" / "Start Qual Coder.command", "Start Qual Coder.command", executable=True)
         add(z, ROOT / "release" / "Start Qual Coder.bat", "Start Qual Coder.bat")
         add(z, None, "READ ME FIRST.txt", data=guide.replace("\n", "\r\n").encode("utf-8"))
-    print(f"Built {out} ({out.stat().st_size // 1024} KB)")
+        shared_google = ROOT / "google.json"
+        if shared_google.is_file():
+            # Public Google identifiers (client ID, restricted API key, project
+            # number) so classmates can sign in without their own Cloud setup.
+            add(z, shared_google, "google.json")
+    print(f"Built {out} ({out.stat().st_size // 1024} KB)"
+          + ("; includes google.json" if (ROOT / "google.json").is_file() else ""))
 
 
 if __name__ == "__main__":

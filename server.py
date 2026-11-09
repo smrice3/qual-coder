@@ -38,7 +38,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
 DEFAULT_PORT = 4350
@@ -461,6 +461,49 @@ def caption_text(raw: str) -> str:
     return "\n\n".join(f"[{t}] {spk}: {txt}" if spk else f"[{t}] {txt}" for t, spk, txt in turns)
 
 
+DOC_EXTS = {".docx", ".doc", ".rtf", ".odt", ".html", ".htm", ".webarchive", ".pdf", ".vtt", ".srt",
+            ".txt", ".text", ".md", ".markdown"}
+ZIP_MAX_FILES = 1000
+ZIP_MAX_FILE = 50 * 1024 * 1024
+ZIP_MAX_TOTAL = 300 * 1024 * 1024
+
+
+def extract_zip(data: bytes) -> dict:
+    """Every document in a .zip, such as a Google Drive download (Docs arrive as .docx)."""
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HttpError(400, "That .zip file couldn't be opened.")
+    docs, skipped, total = [], [], 0
+    with z:
+        infos = [i for i in z.infolist() if not i.is_dir()]
+        if len(infos) > ZIP_MAX_FILES:
+            raise HttpError(413, f"That .zip has more than {ZIP_MAX_FILES:,} files. Split it into smaller downloads.")
+        for info in sorted(infos, key=lambda i: i.filename.lower()):
+            parts = [p for p in info.filename.replace("\\", "/").split("/") if p]
+            if not parts or parts[0] == "__MACOSX" or parts[-1].startswith((".", "~$")):
+                continue
+            base = parts[-1]
+            if Path(base).suffix.lower() not in DOC_EXTS:
+                skipped.append({"name": info.filename, "reason": "not a document type Qual Coder reads"})
+                continue
+            if info.file_size > ZIP_MAX_FILE:
+                skipped.append({"name": info.filename, "reason": "larger than 50 MB"})
+                continue
+            total += info.file_size
+            if total > ZIP_MAX_TOTAL:
+                raise HttpError(413, "That .zip holds more than 300 MB of documents. Split it into smaller downloads.")
+            try:
+                r = extract(base, z.read(info))
+            except HttpError as e:
+                skipped.append({"name": info.filename, "reason": e.message})
+                continue
+            docs.append({"title": r["title"], "text": r["text"], "path": info.filename, "folder": "/".join(parts[:-1])})
+    if not docs and not skipped:
+        raise HttpError(400, "That .zip file is empty.")
+    return {"documents": docs, "skipped": skipped}
+
+
 def extract(filename: str, data: bytes) -> dict:
     ext = Path(filename).suffix.lower()
     if ext == ".docx":
@@ -770,6 +813,64 @@ def ai_suggest(store: Store, pid: str, body: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Google Drive settings (shared by all projects on this computer)
+#
+# Only public identifiers are kept here: the OAuth client ID, a Picker API key
+# restricted to this app's address, and the Cloud project number. Sign-in
+# happens in the browser with Google; the access token stays in the page's
+# memory and is never sent to or stored by this server.
+
+GOOGLE_FIELDS = ("client_id", "api_key", "project_number")
+
+
+def _settings_path(store: Store) -> Path:
+    return store.dir / "qualcoder-settings.json"
+
+
+def google_config(store: Store) -> dict:
+    shipped = {}
+    f = ROOT / "google.json"
+    if f.is_file():
+        try:
+            shipped = json.loads(f.read_text("utf-8"))
+        except (OSError, json.JSONDecodeError):
+            shipped = {}
+    saved = {}
+    p = _settings_path(store)
+    if p.is_file():
+        try:
+            saved = json.loads(p.read_text("utf-8")).get("google") or {}
+        except (OSError, json.JSONDecodeError):
+            saved = {}
+    out = {}
+    for k in GOOGLE_FIELDS:
+        out[k] = (saved.get(k) or shipped.get(k) or "").strip()
+    out["source"] = "this computer" if any(saved.get(k) for k in GOOGLE_FIELDS) else ("included with Qual Coder" if any(shipped.get(k) for k in GOOGLE_FIELDS) else "")
+    return out
+
+
+def save_google_config(store: Store, g: dict) -> dict:
+    vals = {k: str(g.get(k) or "").strip() for k in GOOGLE_FIELDS}
+    if vals["client_id"] and not vals["client_id"].endswith(".apps.googleusercontent.com"):
+        raise HttpError(400, "The client ID should end with .apps.googleusercontent.com.")
+    if vals["api_key"] and not re.fullmatch(r"AIza[0-9A-Za-z_-]{35}", vals["api_key"]):
+        raise HttpError(400, "That doesn't look like a Google API key (they start with AIza and are 39 characters).")
+    if vals["project_number"] and not vals["project_number"].isdigit():
+        raise HttpError(400, "The project number is digits only (find it on the Cloud console dashboard).")
+    p = _settings_path(store)
+    with LOCK:
+        data = {}
+        if p.is_file():
+            try:
+                data = json.loads(p.read_text("utf-8"))
+            except (OSError, json.JSONDecodeError):
+                data = {}
+        data["google"] = vals
+        Store._write(p, data)
+    return google_config(store)
+
+
+# --------------------------------------------------------------------------
 # HTTP
 
 class Handler(SimpleHTTPRequestHandler):
@@ -893,7 +994,14 @@ class Handler(SimpleHTTPRequestHandler):
                 data = base64.b64decode(body.get("data") or "", validate=True)
             except ValueError:
                 raise HttpError(400, "Bad file data")
-            return extract(body.get("filename") or "file.txt", data)
+            filename = body.get("filename") or "file.txt"
+            if Path(filename).suffix.lower() == ".zip":
+                return extract_zip(data)
+            return extract(filename, data)
+        if parts == ["config"] and method == "GET":
+            return {"google": google_config(s)}
+        if parts == ["config"] and method == "PUT":
+            return {"google": save_google_config(s, body.get("google") or {})}
         raise HttpError(404, "Not found")
 
 
@@ -934,7 +1042,7 @@ def main() -> None:
     httpd = None
     for port in range(a.port, a.port + 10):
         if already_running(port):
-            url = f"http://127.0.0.1:{port}/"
+            url = f"http://localhost:{port}/"
             print(f"Qual Coder is already running at {url}")
             if a.open:
                 webbrowser.open(url)
@@ -946,7 +1054,7 @@ def main() -> None:
             continue
     if httpd is None:
         sys.exit(f"Couldn't find a free port between {a.port} and {a.port + 9}.")
-    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    url = f"http://localhost:{httpd.server_address[1]}/"
     print(f"Qual Coder {VERSION} is running at {url}")
     print(f"Projects folder: {Handler.store.dir}")
     print("Leave this window open while you work. Close it (or press Ctrl+C) to stop Qual Coder.", flush=True)

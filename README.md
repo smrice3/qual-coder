@@ -11,7 +11,7 @@ browser. Projects stay on that computer.
 - Classmates: unzip the release and double-click `Start Qual Coder.command`
   (Mac) or `Start Qual Coder.bat` (Windows). See `release/READ ME FIRST.txt`.
 
-It opens http://127.0.0.1:4350 (or the next free port). Launching it again
+It opens http://localhost:4350 (or the next free port). Launching it again
 while it's running just reopens the browser. Options: `--port`, `--data`
 (or the `QUALCODER_DATA` environment variable).
 
@@ -46,11 +46,29 @@ named snapshots) and `ai-log.jsonl`. Deleted projects move to `_trash/`.
 - **Safety:** undo, autosave, backups, snapshots and restore, a warning when
   another tab has saved, and delete-to-trash.
 
+## Google Docs
+
+- **Drive download (no setup):** in Drive, select documents or a folder and
+  choose Download. Drive saves a .zip with each Doc as a .docx. Add that .zip
+  in + Add › Files; folders inside the zip are read too, and anything that
+  isn't a document is listed as skipped.
+- **Google sign-in:** + Add › Google Drive opens Google's own picker. It uses
+  the `drive.file` scope, so Qual Coder can only open the files a person
+  picks. The access token stays in the browser tab; the server never sees
+  or stores it. Docs download as .docx, and each document keeps a link to
+  the original. One-time setup is in Settings › Google Drive: a Google
+  Cloud project with the Drive and Picker APIs enabled, an OAuth web client
+  with `http://localhost:4350` as an authorized origin, a Picker API key,
+  and the project number. Those values are saved in
+  `<projects folder>/qualcoder-settings.json`. To ship them to classmates,
+  put them in `google.json` next to `server.py` (as
+  `{"client_id": …, "api_key": …, "project_number": …}`) before running
+  `make_release.py`. That file is kept out of git.
+
 ## AI suggestions: local Ollama only, off by default
 
-To turn them on, open a project's Settings and confirm two statements: no
-rule prohibits AI-assisted coding of this data, and you'll review every
-suggestion. Requests go only to Ollama on the same computer. The server
+Turn them on in a project's Settings. Requests go only to Ollama on the
+same computer. The server
 refuses any `OLLAMA_HOST` that isn't local and bypasses proxies. Long
 passages are split into chunks of about 6,000 characters. Suggestions must
 quote the text exactly, and nothing is coded until you accept it. Accepted
@@ -58,9 +76,6 @@ codings are labeled AI everywhere, and each request is logged.
 
 Setup: install Ollama (https://ollama.com/download), then
 `ollama pull llama3.1:8b`. Choose the model in Settings.
-
-**Don't turn AI on for TEL 713 / EdD course data.** The course doesn't allow
-AI coding or analysis, even with a local model.
 
 ## Releasing to classmates
 

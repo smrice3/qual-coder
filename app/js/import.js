@@ -4,6 +4,9 @@ import {
   esc, uid, nowIso, openModal, toast, readFileBase64, readFileText, parseCSV, plural, truncate,
   confirmDialog, promptDialog, $, $$,
 } from './util.js';
+import * as gdrive from './google.js';
+
+const DRIVE_ZIP_TIP = 'In Google Drive, select the documents or a whole folder, then right-click › Download. Drive saves a .zip with each Google Doc as a Word file. Choose that .zip in the Files tab and every document in it is added.';
 
 function setOptions() {
   const sets = [...new Set(S.project.documents.map((d) => d.set).filter(Boolean))].sort();
@@ -23,13 +26,16 @@ export function openImportDialog() {
   body.innerHTML = `
     <div class="seg-tabs" role="tablist">
       <button type="button" role="tab" data-tab="files" class="on">Files</button>
+      <button type="button" role="tab" data-tab="google">Google Drive</button>
       <button type="button" role="tab" data-tab="paste">Paste text</button>
       <button type="button" role="tab" data-tab="csv">Spreadsheet rows (CSV)</button>
     </div>
     <div data-pane="files">
-      <p class="hint">Text (.txt, .md), Word (.docx, .doc, .rtf), PDF, and caption files (.vtt, .srt). Captions from Zoom or Teams are merged into speaker turns with timestamps. For a Google Doc, use File › Download › .docx or .txt.</p>
-      <input type="file" multiple accept=".txt,.md,.markdown,.docx,.doc,.rtf,.odt,.pdf,.vtt,.srt,.html,.htm" data-files aria-label="Choose files">
+      <p class="hint">Word (.docx, .doc, .rtf), text (.txt, .md), PDF, caption files (.vtt, .srt), or a .zip of any of these, such as a Google Drive download. Captions from Zoom or Teams are merged into speaker turns with timestamps.</p>
+      <input type="file" multiple accept=".txt,.md,.markdown,.docx,.doc,.rtf,.odt,.pdf,.vtt,.srt,.html,.htm,.zip" data-files aria-label="Choose files">
+      <div data-notes></div>
     </div>
+    <div data-pane="google" hidden><div data-google><p class="muted small">Checking Google Drive setup…</p></div></div>
     <div data-pane="paste" hidden>
       <label class="field"><span>Title</span><input data-paste-title placeholder="e.g. Interview 3 (P3)"></label>
       <label class="field"><span>Text</span><textarea data-paste-text rows="9" placeholder="Paste the transcript or text here"></textarea></label>
@@ -66,7 +72,7 @@ export function openImportDialog() {
         ${it.error ? `<p class="error small">${esc(it.error)}</p>` : `
         <div class="ii-attrs">${keys().map((k) => `<label><span>${esc(k)}</span><input data-i="${i}" data-k="${esc(k)}" value="${esc(it.attrs[k] || '')}"></label>`).join('')}</div>
         <p class="ii-preview">${esc(truncate(it.text.replace(/\s+/g, ' '), 220))}</p>
-        <p class="muted small">${it.filename ? `${esc(it.filename)} · ` : ''}${it.text.length.toLocaleString()} characters · ${plural(it.text.split('\n').filter((l) => l.trim()).length, 'paragraph')}</p>`}
+        <p class="muted small">${it.drive ? 'Google Drive · ' : ''}${it.filename ? `${esc(it.filename)} · ` : ''}${it.text.length.toLocaleString()} characters · ${plural(it.text.split('\n').filter((l) => l.trim()).length, 'paragraph')}</p>`}
       </div>`).join('') : '<p class="muted small">No documents chosen yet.</p>';
   };
 
@@ -87,13 +93,59 @@ export function openImportDialog() {
       <p class="hint">${plural(n, 'row')} with text will become documents.</p>`;
   };
 
+  const renderNotes = (notes) => {
+    $('[data-notes]', body).innerHTML = notes.map((n) => `<p class="hint small">${n}</p>`).join('');
+  };
+
+  let googleError = '';
+  const renderGoogle = async () => {
+    const box = $('[data-google]', body);
+    let c;
+    try { c = await gdrive.googleConfig(); } catch { c = {}; }
+    if (!gdrive.googleReady(c)) {
+      box.innerHTML = `<p>Google sign-in isn't set up on this computer yet. It's a one-time setup in <b>Settings › Google Drive</b>.</p>
+        <p class="hint">${esc(DRIVE_ZIP_TIP)}</p>`;
+      return;
+    }
+    box.innerHTML = `<p><button type="button" class="btn primary" data-act="drive-pick">Choose from Google Drive…</button></p>
+      <p class="hint small">The first time, Google asks you to sign in and allow access. Qual Coder can open only the documents you pick, and each one is downloaded to this computer. Google Docs come in as Word files, with their link kept so you can open the original later.</p>
+      ${googleError ? `<p class="error small">${esc(googleError)}</p>` : ''}
+      <details><summary class="small">No sign-in? Use a Drive download instead</summary><p class="hint small">${esc(DRIVE_ZIP_TIP)}</p></details>`;
+    gdrive.preloadGoogle().catch((err) => { googleError = err.message; renderGoogle(); });
+  };
+
+  const addDriveFiles = async (files) => {
+    for (const f of files) {
+      const it = { title: f.name.replace(/\.(docx|txt|md|pdf|rtf|vtt|srt)$/i, ''), text: '', attrs: {}, filename: f.name, url: f.url, drive: true, error: 'Downloading from Google Drive…' };
+      items.push(it);
+      renderList();
+      try {
+        const { filename, blob } = await gdrive.download(f);
+        const r = await api('POST', '/extract', { filename, data: await readFileBase64(blob) });
+        it.text = r.text;
+        it.error = null;
+      } catch (err) { it.error = err.message; }
+      renderList();
+    }
+  };
+
   body.addEventListener('click', async (e) => {
-    const t = e.target.closest('[data-tab],[data-remove],[data-add-paste],[data-add-key]');
+    const t = e.target.closest('[data-tab],[data-remove],[data-add-paste],[data-add-key],[data-act]');
     if (!t) return;
+    if (t.dataset.act === 'drive-pick') {
+      googleError = '';
+      // signIn() must run straight from the click so the browser allows Google's sign-in window.
+      gdrive.signIn()
+        .then(() => gdrive.pick())
+        .then((files) => (files.length ? addDriveFiles(files) : null))
+        .catch((err) => { googleError = err.message; renderGoogle(); });
+      return;
+    }
     if (t.dataset.tab) {
       tab = t.dataset.tab;
       $$('[data-tab]', body).forEach((b) => b.classList.toggle('on', b === t));
       $$('[data-pane]', body).forEach((pn) => { pn.hidden = pn.dataset.pane !== tab; });
+      if (tab === 'google') renderGoogle();
       renderList();
     } else if (t.dataset.remove != null) {
       items.splice(Number(t.dataset.remove), 1);
@@ -124,14 +176,22 @@ export function openImportDialog() {
     if (t.matches('[data-files]')) {
       const files = [...t.files];
       t.value = '';
+      const notes = [];
       for (const f of files) {
-        const it = { title: f.name.replace(/\.[^.]+$/, ''), text: '', attrs: {}, filename: f.name, error: 'Reading…' };
+        const it = { title: f.name.replace(/\.[^.]+$/, ''), text: '', attrs: {}, filename: f.name, error: f.name.toLowerCase().endsWith('.zip') ? 'Opening the .zip…' : 'Reading…' };
         items.push(it);
         renderList();
         try {
           const r = await api('POST', '/extract', { filename: f.name, data: await readFileBase64(f) });
-          it.text = r.text;
-          it.error = null;
+          if (r.documents) {
+            items.splice(items.indexOf(it), 1);
+            for (const d of r.documents) items.push({ title: d.title, text: d.text, attrs: {}, filename: `${f.name} › ${d.path}`, error: null });
+            notes.push(`${esc(f.name)}: added ${plural(r.documents.length, 'document')}${r.skipped.length ? `; skipped ${r.skipped.length} (${r.skipped.slice(0, 6).map((x) => `${esc(x.name.split('/').pop())}: ${esc(x.reason)}`).join('; ')}${r.skipped.length > 6 ? '; …' : ''})` : ''}.`);
+            renderNotes(notes);
+          } else {
+            it.text = r.text;
+            it.error = null;
+          }
         } catch (err) { it.error = err.message; }
         renderList();
       }
@@ -164,6 +224,8 @@ export function openImportDialog() {
 
   renderKeys();
   renderList();
+  // Load Google's sign-in code early so the sign-in window can open from a click.
+  gdrive.googleConfig().then((c) => { if (gdrive.googleReady(c)) gdrive.preloadGoogle().catch(() => {}); }).catch(() => {});
 
   openModal({
     title: 'Add documents',
@@ -209,7 +271,8 @@ export function openImportDialog() {
             for (const it of good) {
               const attrs = {};
               for (const [k, v] of Object.entries(it.attrs)) if (String(v).trim()) attrs[k] = String(v).trim();
-              const d = { id: uid('d'), title: it.title.trim() || 'Untitled', text: it.text, set, attrs, source: it.filename || 'pasted text', added: nowIso() };
+              const d = { id: uid('d'), title: it.title.trim() || 'Untitled', text: it.text, set, attrs, source: it.drive ? `Google Drive: ${it.filename}` : it.filename || 'pasted text', added: nowIso() };
+              if (it.url) d.source_url = it.url;
               pp.documents.push(d);
               firstId ||= d.id;
             }
@@ -241,6 +304,7 @@ export function editDocDialog(docId) {
         <div class="ii-attrs">${ks.map((k) => `<label><span>${esc(k)}</span><input data-attr="${esc(k)}" value="${esc(doc.attrs[k] ?? '')}"></label>`).join('')}</div>
         <button type="button" class="btn small" data-add-key>+ Attribute</button>
       </div>
+      ${doc.source_url ? `<p class="small"><a href="${esc(doc.source_url)}" target="_blank" rel="noopener">Open the original in Google Drive ↗</a> <span class="muted">(this copy doesn't change if the original does)</span></p>` : ''}
       <p class="muted small">Source: ${esc(doc.source || 'unknown')} · added ${esc(new Date(doc.added || Date.now()).toLocaleDateString())} · ${doc.text.length.toLocaleString()} characters · ${plural(nCodings, 'coded excerpt')}.
       The text itself can't be edited here, because codes are anchored to exact character positions.</p>`;
   };

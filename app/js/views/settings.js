@@ -5,7 +5,7 @@ import {
 import {
   esc, fmtDate, plural, toast, confirmDialog, promptDialog, openModal, joinPath, MOD, SHIFT, $, $$,
 } from '../util.js';
-import { aiAckHtml, readAck } from '../ai.js';
+import * as gdrive from '../google.js';
 
 export function render(el) {
   const p = S.project;
@@ -57,7 +57,12 @@ export function render(el) {
           <textarea data-instructions rows="4" placeholder="e.g. Research question: How do first-year faculty decide which course tools to adopt? Code for reasons, barriers and sources of support. Prefer short descriptive codes.">${esc(st.ai_instructions)}</textarea></label>
         <div class="btn-row"><button class="btn small danger-ghost" data-act="ai-off">Turn AI suggestions off</button></div>
         <h3>AI requests</h3><div data-ai-log class="small muted">Loading…</div>`
-        : '<button class="btn small" data-act="ai-on">Turn on AI suggestions…</button>'}
+        : '<button class="btn small" data-act="ai-on">Turn on AI suggestions</button>'}
+    </section>
+
+    <section class="set-sec">
+      <h2>Google Drive <span class="tag">all projects on this computer</span></h2>
+      <div data-google-settings><p class="muted small">Loading…</p></div>
     </section>
 
     <section class="set-sec">
@@ -106,6 +111,8 @@ export function render(el) {
   });
   const instr = $('[data-instructions]', root);
   if (instr) bindField(instr, st, 'ai_instructions', { label: 'edit AI instructions' });
+  renderGoogleSettings(root);
+
   if (!S.ai) {
     api('GET', '/ai/status').then((r) => { S.ai = r; if (S.view === 'settings') rerender(); }).catch(() => {});
   }
@@ -163,33 +170,16 @@ export function render(el) {
         try { S.ai = await api('GET', '/ai/status'); } catch { S.ai = { available: false }; }
         rerender();
         break;
-      case 'ai-on': {
-        openModal({
-          title: 'Turn on AI suggestions',
-          body: aiAckHtml(),
-          wide: true,
-          actions: [
-            { label: 'Cancel' },
-            {
-              label: 'Turn on',
-              primary: true,
-              onClick: (h) => {
-                if (!readAck(h.body)) { toast('Check both boxes to turn this on'); return false; }
-                mutate('turn on AI suggestions', (pp) => {
-                  pp.settings.ai_enabled = true;
-                  pp.settings.ai_ack = { t: new Date().toISOString(), backend: 'ollama', rules_allow: true, will_review: true };
-                  if (!pp.settings.ai_model && models.length) {
-                    pp.settings.ai_model = models.includes('llama3.1:8b') ? 'llama3.1:8b' : models[0];
-                  }
-                  logEvent(pp, 'AI suggestions turned on', 'Local model through Ollama. Researcher confirmed no rule prohibits AI-assisted coding and that they will review every suggestion.');
-                });
-                return true;
-              },
-            },
-          ],
+      case 'ai-on':
+        mutate('turn on AI suggestions', (pp) => {
+          pp.settings.ai_enabled = true;
+          pp.settings.ai_ack = { t: new Date().toISOString(), backend: 'ollama' };
+          if (!pp.settings.ai_model && models.length) {
+            pp.settings.ai_model = models.includes('llama3.1:8b') ? 'llama3.1:8b' : models[0];
+          }
+          logEvent(pp, 'AI suggestions turned on', `Local model through Ollama${pp.settings.ai_model ? ` (${pp.settings.ai_model})` : ''}`);
         });
         break;
-      }
       case 'ai-off':
         mutate('turn off AI suggestions', (pp) => {
           pp.settings.ai_enabled = false;
@@ -248,4 +238,73 @@ export function render(el) {
         : '<p>No requests yet.</p>';
     }).catch(() => {});
   }
+}
+
+// ---------------------------------------------------------------- Google Drive
+
+async function renderGoogleSettings(root, message = '') {
+  const box = $('[data-google-settings]', root);
+  if (!box) return;
+  let c = {};
+  try { c = await gdrive.googleConfig(true); } catch { /* older server */ }
+  if (!box.isConnected) return;
+  const ready = gdrive.googleReady(c);
+  const port = location.port || '80';
+  const onIp = location.hostname === '127.0.0.1';
+  box.innerHTML = `
+    <p>${ready
+      ? `Set up${c.source === 'included with Qual Coder' ? ' (settings included with this copy of Qual Coder)' : ''}. In <b>+ Add</b> › <b>Google Drive</b>, sign in with Google and pick documents. Qual Coder can open only the documents you pick, and your Google sign-in stays in the browser; it isn't saved.`
+      : 'Not set up. Without it, you can still bring in Google Docs: in Drive, select documents or a folder › Download, then add the .zip in <b>+ Add</b> › <b>Files</b>.'}</p>
+    ${onIp ? `<p class="small">Google sign-in needs the address <a href="http://localhost:${port}/#settings">http://localhost:${port}</a>. Open Qual Coder there instead of ${esc(location.origin)}.</p>` : ''}
+    <div class="grid3">
+      <label class="field"><span>OAuth client ID</span><input data-g="client_id" value="${esc(c.client_id || '')}" placeholder="…apps.googleusercontent.com" spellcheck="false"></label>
+      <label class="field"><span>API key</span><input data-g="api_key" value="${esc(c.api_key || '')}" placeholder="AIza…" spellcheck="false"></label>
+      <label class="field"><span>Project number</span><input data-g="project_number" value="${esc(c.project_number || '')}" placeholder="123456789012" spellcheck="false"></label>
+    </div>
+    <div class="btn-row">
+      <button class="btn small primary" data-gact="save">Save</button>
+      <button class="btn small" data-gact="test" ${ready ? '' : 'disabled'}>Test sign-in</button>
+      ${ready ? '<button class="btn small ghost" data-gact="signout">Sign out of Google</button>' : ''}
+    </div>
+    ${message ? `<p class="small ${message.startsWith('✓') ? 'ok' : 'error'}">${esc(message)}</p>` : ''}
+    <details ${ready ? '' : 'open'}><summary>How to set this up (once, about 15 minutes)</summary>
+      <ol class="small steps">
+        <li>Go to <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">console.cloud.google.com</a>, sign in with the Google account whose Drive you'll use, and create a project named <b>Qual Coder</b>.</li>
+        <li>In <b>APIs &amp; Services › Library</b>, enable the <b>Google Drive API</b> and the <b>Google Picker API</b>.</li>
+        <li>In <b>Google Auth Platform › Branding</b>, set the app name to Qual Coder and add your email. Under <b>Audience</b>, choose <b>Internal</b> if it's offered (anyone in your organization can sign in, with no review). Otherwise choose External, leave it in Testing, and add each person who'll use it as a test user.</li>
+        <li>In <b>Data Access</b>, add the scope <code>…/auth/drive.file</code>. It only covers files a person picks.</li>
+        <li>In <b>Clients</b>, create a client of type <b>Web application</b>. Under <b>Authorized JavaScript origins</b>, add <code>http://localhost:${esc(port)}</code>, plus <code>http://localhost:4351</code> for when that port is in use. Copy the <b>Client ID</b>.</li>
+        <li>In <b>APIs &amp; Services › Credentials</b>, choose <b>Create credentials › API key</b>. Restrict it to the <b>Google Picker API</b> and to the websites <code>http://localhost:${esc(port)}/*</code>. Copy the key.</li>
+        <li>Copy the <b>Project number</b> from the console's Welcome page (Project info).</li>
+        <li>Paste all three above, click <b>Save</b>, then <b>Test sign-in</b>.</li>
+      </ol>
+      <p class="small muted">To share this setup with classmates, save the three values in a file named <code>google.json</code> next to <code>server.py</code> before you build the zip. They can then sign in without doing this setup, as long as the app lets them in (Internal, or added as test users).</p>
+    </details>`;
+
+  box.onclick = async (e) => {
+    const b = e.target.closest('[data-gact]');
+    if (!b) return;
+    if (b.dataset.gact === 'save') {
+      const vals = Object.fromEntries($$('[data-g]', box).map((i) => [i.dataset.g, i.value.trim()]));
+      try {
+        await api('PUT', '/config', { google: vals });
+        await renderGoogleSettings(root, gdrive.googleReady(vals) ? '✓ Saved. Click Test sign-in to check it works.' : '✓ Saved.');
+      } catch (err) { renderGoogleSettings(root, err.message); }
+    } else if (b.dataset.gact === 'test') {
+      if (!gdrive.googleLoaded()) {
+        toast('Loading Google…');
+        gdrive.preloadGoogle()
+          .then(() => toast('Google is ready. Click Test sign-in again.'))
+          .catch((err) => renderGoogleSettings(root, err.message));
+        return;
+      }
+      gdrive.signIn()
+        .then(() => renderGoogleSettings(root, '✓ Signed in. Google Drive is ready: use + Add › Google Drive in the Code view.'))
+        .catch((err) => renderGoogleSettings(root, err.message));
+    } else if (b.dataset.gact === 'signout') {
+      gdrive.signOut();
+      renderGoogleSettings(root, '✓ Signed out of Google in Qual Coder.');
+    }
+  };
+  if (ready) gdrive.preloadGoogle().catch(() => {});
 }

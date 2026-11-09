@@ -3,7 +3,7 @@
 import {
   S, idx, mutate, api, flushSave, makeCode, findCodeByName, logEvent, codePath, codeTree, rerender,
 } from './store.js';
-import { esc, truncate, uid, nowIso, toast, confirmDialog, plural, $ } from './util.js';
+import { esc, truncate, uid, nowIso, toast, confirmDialog, plural } from './util.js';
 
 const busy = { on: false, label: '' };
 
@@ -154,16 +154,4 @@ export function handleAiChange(t) {
   const codeId = t.value;
   mutate('accept AI suggestion with another code', (p) => accept(p, p.suggestions.find((s) => s.id === sid), codeId));
   return true;
-}
-
-// Settings: turning AI on requires an explicit acknowledgment.
-export function aiAckHtml() {
-  return `<p>Turning this on lets you ask an AI model for code suggestions in this project. The model runs on this computer through Ollama, so the passage you choose and your codebook never leave the computer. Nothing is sent automatically, and nothing is coded until you accept it. Accepted codings are labeled AI here and in every export, and each request is logged.</p>
-    <p>Confirm both before turning it on:</p>
-    <label class="check"><input type="checkbox" data-ack="rules"> No course, program, IRB or project rule prohibits AI-assisted coding or analysis of this data. (Some courses don't allow it even with a local model. If yours doesn't, leave this off.)</label>
-    <label class="check"><input type="checkbox" data-ack="review"> I'll read every suggestion before accepting it. Local models make mistakes, and the coding decisions are mine.</label>`;
-}
-
-export function readAck(body) {
-  return $('[data-ack="rules"]', body).checked && $('[data-ack="review"]', body).checked;
 }

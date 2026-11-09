@@ -4,6 +4,9 @@ dist/
 # Local machine settings (absolute paths for the Claude browser pane)
 .claude/
 
+# Google sign-in settings to ship in the zip (kept out of git for now)
+google.json
+
 # Project data never belongs in the repo
 projects/
 Qual Coder Projects/
