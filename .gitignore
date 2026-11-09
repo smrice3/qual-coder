@@ -1,0 +1,15 @@
+# Built zips (rebuild with: python3 make_release.py)
+dist/
+
+# Local machine settings (absolute paths for the Claude browser pane)
+.claude/
+
+# Project data never belongs in the repo
+projects/
+Qual Coder Projects/
+*.qualcoder.json
+
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

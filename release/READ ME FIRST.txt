@@ -1,0 +1,96 @@
+QUAL CODER {VERSION}
+
+A free tool for coding qualitative data: interview transcripts, field notes,
+open-ended survey answers. It runs on your own computer. You start a small
+program, and Qual Coder opens in your web browser. Your projects stay on your
+computer.
+
+
+1. ONE-TIME SETUP: INSTALL PYTHON (FREE)
+
+Qual Coder needs Python 3.8 or newer.
+
+  Windows: download it from https://www.python.org/downloads/windows/
+           On the first installer screen, tick "Add python.exe to PATH".
+
+  Mac:     download it from https://www.python.org/downloads/macos/
+           (If you already have python3, you can skip this.)
+
+
+2. START QUAL CODER
+
+  Windows: double-click "Start Qual Coder.bat".
+           If Windows says "Windows protected your PC", click "More info",
+           then "Run anyway".
+
+  Mac:     double-click "Start Qual Coder.command".
+           If macOS says it can't check the file for malicious software,
+           open System Settings > Privacy & Security, scroll down, and click
+           "Open Anyway" next to "Start Qual Coder.command". Then double-click
+           it again.
+
+A window full of text opens, and then Qual Coder opens in your browser at
+http://127.0.0.1:4350 (Chrome, Edge, Safari or Firefox). Leave that window
+open while you work. Close it to stop Qual Coder.
+
+If double-clicking doesn't work, open Terminal (Mac) or Command Prompt
+(Windows), go to this folder, and run:
+    Mac:      python3 server.py --open
+    Windows:  py server.py --open
+
+
+3. WHERE YOUR WORK IS SAVED
+
+In a folder called "Qual Coder Projects" in your home folder:
+    Windows:  C:\Users\<your name>\Qual Coder Projects
+    Mac:      /Users/<your name>/Qual Coder Projects
+
+Projects save automatically, keep a backup copy every 10 minutes, and can
+be exported as a single file (Export > Full project file). That file is how
+you back a project up or share it with someone else, who imports it from
+the Qual Coder home screen.
+
+Keep research data only where your IRB protocol and course allow it to be
+stored.
+
+
+4. GETTING A NEWER VERSION
+
+Replace this folder with the new one. Your "Qual Coder Projects" folder is
+separate, so your work isn't touched.
+
+
+5. FILES YOU CAN BRING IN
+
+Word (.docx), text (.txt, .md), Zoom or Teams captions (.vtt, .srt), RTF,
+a spreadsheet saved as .csv (one row per document, such as survey
+answers), or pasted text. For a Google Doc, use File > Download > .docx.
+PDFs need an extra free tool (pdftotext), so it's easier to save a PDF as
+.docx or copy and paste its text.
+
+
+6. OPTIONAL: AI SUGGESTIONS (LOCAL ONLY, OFF BY DEFAULT)
+
+Qual Coder can ask an AI model running on your own computer to suggest
+codes. Nothing is sent over the internet. You accept or reject every
+suggestion, and accepted ones are labeled AI in all exports.
+
+Check your course and IRB rules first. Some courses don't allow
+AI-assisted coding at all, even with a local model.
+
+To use it:
+  a. Install Ollama from https://ollama.com/download and open it.
+  b. In Terminal (Mac) or Command Prompt (Windows), run:
+         ollama pull llama3.1:8b
+     (a 5 GB download; works best with 16 GB of memory)
+  c. In a project, open Settings > AI suggestions > Turn on.
+
+
+7. QUICK START
+
+  - Create a project, then use "+ Add" to bring in documents.
+  - Select text, type a code name, and press Enter.
+  - Press / to search every document; you can code search results in bulk.
+  - Codebook: definitions and criteria. Memos: your analytic notes.
+  - Analyze: read every excerpt for a code. Themes: group codes.
+  - Undo with Ctrl+Z (Command+Z on a Mac).

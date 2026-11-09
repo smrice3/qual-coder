@@ -1,0 +1,5 @@
+#!/bin/zsh
+# Start Qual Coder and open it in the browser. Extra arguments go to server.py,
+# e.g. ./qual-coder --data ~/path/to/projects --port 4351
+cd "${0:A:h}"
+exec python3 server.py --open "$@"
