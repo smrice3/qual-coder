@@ -38,7 +38,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
 DEFAULT_PORT = 4350

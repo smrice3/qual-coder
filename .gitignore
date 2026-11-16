@@ -16,3 +16,6 @@ __pycache__/
 *.pyc
 .DS_Store
 Thumbs.db
+
+# Python builds downloaded by make_release.py
+.release-cache/

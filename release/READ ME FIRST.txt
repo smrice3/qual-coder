@@ -1,49 +1,85 @@
 QUAL CODER {VERSION}
 
 A free tool for coding qualitative data: interview transcripts, field notes,
-open-ended survey answers. It runs on your own computer. You start a small
-program, and Qual Coder opens in your web browser. Your projects stay on your
-computer.
+open-ended survey answers. It runs on your own computer and opens in your
+web browser. Your projects stay on your computer.
+[[mac,windows]]
+
+Everything Qual Coder needs is in this folder, so there's nothing else to
+install.
+[[end]]
 
 
-1. ONE-TIME SETUP: INSTALL PYTHON (FREE)
+1. START QUAL CODER
 
-Qual Coder needs Python 3.8 or newer.
+[[windows]]
+  a. Unzip the download first: right-click the zip file, choose
+     "Extract All", then click Extract. (Double-clicking the zip only shows
+     a preview, and Qual Coder can't start from there.)
 
-  Windows: download it from https://www.python.org/downloads/windows/
-           On the first installer screen, tick "Add python.exe to PATH".
+  b. In the folder that opens, double-click "Start Qual Coder".
 
-  Mac:     download it from https://www.python.org/downloads/macos/
-           (If you already have python3, you can skip this.)
+  c. The first time, Windows may say "Windows protected your PC". Click
+     "More info", then "Run anyway".
+[[mac]]
+  a. Double-click the zip file you downloaded, unless your Mac already
+     unzipped it. A "Qual Coder {VERSION}" folder appears next to it. You can
+     move that folder anywhere you like.
+
+  b. In that folder, double-click "Start Qual Coder.command".
+
+  c. The first time, your Mac says it can't open the file because Apple
+     can't check it for malicious software. Click Done. Then:
+       - Open System Settings > Privacy & Security.
+       - Scroll down and click "Open Anyway" next to
+         "Start Qual Coder.command".
+       - When your Mac asks again, click "Open Anyway" and enter your Mac
+         password.
+     If your Mac asks whether Terminal may access files in your Downloads
+     folder (or wherever the Qual Coder folder is), click Allow.
+     You only do all this once.
+[[plain]]
+  First, install Python 3.8 or newer (free), unless you already have it:
+
+    Windows: https://www.python.org/downloads/windows/
+             On the first installer screen, tick "Add python.exe to PATH".
+    Mac:     https://www.python.org/downloads/macos/
+
+  Then start Qual Coder:
+
+    Windows: unzip the download (right-click > Extract All), then
+             double-click "Start Qual Coder.bat". If Windows says "Windows
+             protected your PC", click "More info", then "Run anyway".
+
+    Mac:     double-click "Start Qual Coder.command". If macOS says it
+             can't check the file for malicious software, open System
+             Settings > Privacy & Security, scroll down, and click "Open
+             Anyway" next to "Start Qual Coder.command".
+
+  If double-clicking doesn't work, open Terminal (Mac) or Command Prompt
+  (Windows), go to this folder, and run:
+      Mac:      python3 server.py --open
+      Windows:  py server.py --open
+[[end]]
+
+A window full of text opens, and then Qual Coder opens in your web browser
+at http://localhost:4350. Leave that window open while you work. Closing it
+stops Qual Coder. Next time, just double-click "Start Qual Coder" again.
+[[mac,windows]]
+
+If Qual Coder doesn't open, take a screenshot of that window and send it to
+whoever gave you Qual Coder. The window says what went wrong.
+[[end]]
 
 
-2. START QUAL CODER
-
-  Windows: double-click "Start Qual Coder.bat".
-           If Windows says "Windows protected your PC", click "More info",
-           then "Run anyway".
-
-  Mac:     double-click "Start Qual Coder.command".
-           If macOS says it can't check the file for malicious software,
-           open System Settings > Privacy & Security, scroll down, and click
-           "Open Anyway" next to "Start Qual Coder.command". Then double-click
-           it again.
-
-A window full of text opens, and then Qual Coder opens in your browser at
-http://localhost:4350 (Chrome, Edge, Safari or Firefox). Leave that window
-open while you work. Close it to stop Qual Coder.
-
-If double-clicking doesn't work, open Terminal (Mac) or Command Prompt
-(Windows), go to this folder, and run:
-    Mac:      python3 server.py --open
-    Windows:  py server.py --open
-
-
-3. WHERE YOUR WORK IS SAVED
+2. WHERE YOUR WORK IS SAVED
 
 In a folder called "Qual Coder Projects" in your home folder:
+[[windows,plain]]
     Windows:  C:\Users\<your name>\Qual Coder Projects
+[[mac,plain]]
     Mac:      /Users/<your name>/Qual Coder Projects
+[[end]]
 
 Projects save automatically, keep a backup copy every 10 minutes, and can
 be exported as a single file (Export > Full project file). That file is how
@@ -53,32 +89,35 @@ the Qual Coder home screen.
 Keep research data only where your IRB protocol allows it to be stored.
 
 
-4. GETTING A NEWER VERSION
+3. GETTING A NEWER VERSION
 
-Replace this folder with the new one. Your "Qual Coder Projects" folder is
-separate, so your work isn't touched.
+Download the new version and use it instead of this one. You can delete
+this folder afterward. Your "Qual Coder Projects" folder is separate, so
+your work isn't touched.
+[[mac]]
+You'll do the "Open Anyway" step once more for the new version.
+[[end]]
 
 
-5. FILES YOU CAN BRING IN
+4. FILES YOU CAN BRING IN
 
 Word (.docx), text (.txt, .md), Zoom or Teams captions (.vtt, .srt), RTF,
 a spreadsheet saved as .csv (one row per document, such as survey
-answers), a .zip of any of these, or pasted text. PDFs need an extra free
-tool (pdftotext), so it's easier to save a PDF as .docx or copy and paste
-its text.
+answers), a .zip of any of these, or pasted text. For a PDF, save it as a
+Word file first or copy and paste its text.
 
 Google Docs, two ways:
-  - Drive download (always works): in Google Drive, select the documents
-    or a whole folder, right-click > Download. Drive saves a .zip with
-    each Google Doc as a Word file. In Qual Coder, choose + Add > Files and
-    pick that .zip; every document in it is added.
   - Google sign-in (ASU Google accounts): + Add > Google Drive > Choose
     from Google Drive. The first time, sign in with your ASU account and
     click Allow. Then pick documents in Google's own window. Qual Coder can
     open only the documents you pick, and nothing else in your Drive.
+  - Drive download (works with any account): in Google Drive, select the
+    documents or a whole folder, right-click > Download. Drive saves a .zip
+    with each Google Doc as a Word file. In Qual Coder, choose + Add > Files
+    and pick that .zip; every document in it is added.
 
 
-6. OPTIONAL: AI SUGGESTIONS (LOCAL ONLY, OFF BY DEFAULT)
+5. OPTIONAL: AI SUGGESTIONS (LOCAL ONLY, OFF BY DEFAULT)
 
 Qual Coder can ask an AI model running on your own computer to suggest
 codes. Nothing is sent over the internet. You accept or reject every
@@ -86,17 +125,29 @@ suggestion, and accepted ones are labeled AI in all exports.
 
 To use it:
   a. Install Ollama from https://ollama.com/download and open it.
+[[mac]]
+  b. Open Terminal and run:
+[[windows]]
+  b. Open Command Prompt and run:
+[[plain]]
   b. In Terminal (Mac) or Command Prompt (Windows), run:
+[[end]]
          ollama pull llama3.1:8b
      (a 5 GB download; works best with 16 GB of memory)
   c. In a project, open Settings > AI suggestions > Turn on.
 
 
-7. QUICK START
+6. QUICK START
 
   - Create a project, then use "+ Add" to bring in documents.
   - Select text, type a code name, and press Enter.
   - Press / to search every document; you can code search results in bulk.
   - Codebook: definitions and criteria. Memos: your analytic notes.
   - Analyze: read every excerpt for a code. Themes: group codes.
+[[mac]]
+  - Undo with Command+Z.
+[[windows]]
+  - Undo with Ctrl+Z.
+[[plain]]
   - Undo with Ctrl+Z (Command+Z on a Mac).
+[[end]]

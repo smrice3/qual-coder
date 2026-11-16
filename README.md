@@ -8,8 +8,9 @@ browser. Projects stay on that computer.
 
 - Mac (this folder): `./qual-coder`, or the launch config "qual-coder" in the
   Claude browser pane
-- Classmates: unzip the release and double-click `Start Qual Coder.command`
-  (Mac) or `Start Qual Coder.bat` (Windows). See `release/READ ME FIRST.txt`.
+- Everyone else: download the Mac or Windows zip, unzip it, and double-click
+  `Start Qual Coder`. Python is included, so there's nothing to install. See
+  `release/READ ME FIRST.txt`.
 
 It opens http://localhost:4350 (or the next free port). Launching it again
 while it's running just reopens the browser. Options: `--port`, `--data`
@@ -77,19 +78,34 @@ codings are labeled AI everywhere, and each request is logged.
 Setup: install Ollama (https://ollama.com/download), then
 `ollama pull llama3.1:8b`. Choose the model in Settings.
 
-## Releasing to classmates
+## Releasing
 
 ```bash
 python3 make_release.py
 ```
 
-This writes `dist/QualCoder-<version>.zip` with the server, the app, both
-launchers, and `READ ME FIRST.txt`. It never includes any projects. Bump
-`VERSION` in `server.py` first.
+This writes three downloads to `dist/`, none with any projects:
+
+- `QualCoder-<version>-Mac.zip` (about 21 MB): Python 3.14 for Apple chips and
+  Intel (from python-build-standalone, trimmed of tests, Tk, pip and headers).
+  The launcher clears macOS's download flag from that Python, since people
+  have already allowed the launcher itself.
+- `QualCoder-<version>-Windows.zip` (about 12 MB): python.org's embeddable
+  Python 3.14, signed by the Python Software Foundation. The launcher tells
+  people to Extract All if they open it from inside the zip.
+- `QualCoder-<version>-needs-Python.zip`: for anyone with Python 3.8+ already
+  installed, including Linux.
+
+The first run downloads the Python builds (about 65 MB) into
+`.release-cache/` and refuses any file whose SHA-256 doesn't match the pinned
+checksum in `make_release.py`. To move to a newer Python, update the URLs and
+checksums there. Each download gets its own `READ ME FIRST.txt`: lines between
+`[[mac]]`, `[[windows]]` or `[[plain]]` and `[[end]]` go only into those
+downloads. Bump `VERSION` in `server.py` first.
 
 ## Files
 
 - `server.py`: local server, standard library only
 - `app/`: browser app (plain JavaScript modules, no build step)
-- `release/`: the launchers and the classmate guide that go in the zip
-- `make_release.py`: builds the zip
+- `release/`: the launchers and the guide template that go in the downloads
+- `make_release.py`: builds the downloads
