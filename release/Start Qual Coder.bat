@@ -33,7 +33,20 @@ if not defined PY (
   pause
   exit /b 1
 )
-%PY% server.py --open %*
+rem After an in-app update, Qual Coder exits with code 3 so this window can
+rem start the new version (without opening another browser tab).
+set "QUALCODER_RESTART=exit"
+set "OPEN=--open"
+:run
+%PY% server.py %OPEN% %*
+if errorlevel 3 if not errorlevel 4 (
+  set "OPEN="
+  set "QUALCODER_RESTARTED=1"
+  echo.
+  echo Starting the new version of Qual Coder...
+  echo.
+  goto run
+)
 echo.
 echo Qual Coder has stopped. If it stopped by itself, take a screenshot of this
 echo window and send it to whoever gave you Qual Coder.

@@ -78,34 +78,59 @@ codings are labeled AI everywhere, and each request is logged.
 Setup: install Ollama (https://ollama.com/download), then
 `ollama pull llama3.1:8b`. Choose the model in Settings.
 
+## Updates
+
+Qual Coder checks this repository's latest GitHub release (at most every six
+hours, and from Settings › Updates) and shows an "Update available" button
+when there's a newer version. "Update now" downloads that release's
+`QualCoder-<version>-update.zip`, checks it against the SHA-256 GitHub lists
+for the file, moves the current `server.py`, `app/` and `google.json` into
+`.previous-version/`, swaps the new ones in, and restarts. Projects are in their
+own folder and aren't touched. On a Mac or Linux the server restarts itself in
+place; the Windows launcher reruns it when it exits with code 3. A git
+checkout refuses to update itself (use `git pull`). The updater never replaces
+the launchers or the bundled Python: when a release changes those, set
+`FULL_DOWNLOAD_REQUIRED = True` in `make_release.py`, and Qual Coder will send
+people to the release page instead.
+
 ## Releasing
 
-```bash
-python3 make_release.py
-```
+1. Bump `VERSION` in `server.py`.
+2. Build:
 
-This writes three downloads to `dist/`, none with any projects:
+   ```bash
+   python3 make_release.py
+   ```
 
-- `QualCoder-<version>-Mac.zip` (about 21 MB): Python 3.14 for Apple chips and
-  Intel (from python-build-standalone, trimmed of tests, Tk, pip and headers).
-  The launcher clears macOS's download flag from that Python, since people
-  have already allowed the launcher itself.
-- `QualCoder-<version>-Windows.zip` (about 12 MB): python.org's embeddable
-  Python 3.14, signed by the Python Software Foundation. The launcher tells
-  people to Extract All if they open it from inside the zip.
-- `QualCoder-<version>-needs-Python.zip`: for anyone with Python 3.8+ already
-  installed, including Linux.
+   This writes four files to `dist/`, none with any projects:
 
-The first run downloads the Python builds (about 65 MB) into
+   - `QualCoder-<version>-Mac.zip` (about 21 MB): Python 3.14 for Apple chips and
+     Intel (from python-build-standalone, trimmed of tests, Tk, pip and headers).
+     The launcher clears macOS's download flag from that Python, since people
+     have already allowed the launcher itself.
+   - `QualCoder-<version>-Windows.zip` (about 12 MB): python.org's embeddable
+     Python 3.14, signed by the Python Software Foundation. The launcher tells
+     people to Extract All if they open it from inside the zip.
+   - `QualCoder-<version>-needs-Python.zip`: for anyone with Python 3.8+ already
+     installed, including Linux.
+   - `QualCoder-<version>-update.zip`: what the in-app updater installs.
+
+3. Publish them as a GitHub release (release notes appear in the update dialog):
+
+   ```bash
+   gh release create v<version> dist/QualCoder-<version>-*.zip --title "Qual Coder <version>" --notes-file notes.md
+   ```
+
+The first build downloads the Python builds (about 65 MB) into
 `.release-cache/` and refuses any file whose SHA-256 doesn't match the pinned
 checksum in `make_release.py`. To move to a newer Python, update the URLs and
 checksums there. Each download gets its own `READ ME FIRST.txt`: lines between
 `[[mac]]`, `[[windows]]` or `[[plain]]` and `[[end]]` go only into those
-downloads. Bump `VERSION` in `server.py` first.
+downloads.
 
 ## Files
 
 - `server.py`: local server, standard library only
 - `app/`: browser app (plain JavaScript modules, no build step)
 - `release/`: the launchers and the guide template that go in the downloads
-- `make_release.py`: builds the downloads
+- `make_release.py`: builds the downloads and the update package

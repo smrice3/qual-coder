@@ -4,6 +4,9 @@
   QualCoder-<version>-Mac.zip           Python included (Apple chip and Intel)
   QualCoder-<version>-Windows.zip       Python included (64-bit Windows)
   QualCoder-<version>-needs-Python.zip  any system with Python 3.8+ installed
+  QualCoder-<version>-update.zip        what Qual Coder's "Update now" installs
+
+Upload all four to a GitHub release tagged v<version> (see README.md).
 
 Each holds the server, the app, the launcher for that system, a plain-text
 guide written for that download (from release/READ ME FIRST.txt), and
@@ -13,8 +16,8 @@ The first run downloads the Python builds (about 60 MB) into .release-cache/
 and refuses any file whose SHA-256 doesn't match the checksums below, which
 come from python.org and the python-build-standalone release.
 
-Run: python3 make_release.py            (all three)
-     python3 make_release.py mac        (just one: mac, windows or plain)
+Run: python3 make_release.py            (all four)
+     python3 make_release.py mac        (just some: mac, windows, plain, update)
 """
 import hashlib
 import posixpath
@@ -27,9 +30,15 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent
 VERSION = re.search(r'^VERSION = "([^"]+)"', (ROOT / "server.py").read_text("utf-8"), re.M).group(1)
-TOP = f"Qual Coder {VERSION}"
+TOP = "Qual Coder"  # no version: the in-app updater keeps the folder
 CACHE = ROOT / ".release-cache"
 STAMP = (2026, 1, 1, 0, 0, 0)
+VARIANTS = ("mac", "windows", "plain", "update")
+
+# Set this to True for a release whose launchers or bundled Python changed:
+# the in-app updater only replaces the server, the app and the guides, so it
+# will send people to the release page for a fresh download instead.
+FULL_DOWNLOAD_REQUIRED = False
 
 # Python 3.14 (3.13 now gets source-only security releases, with no Windows build).
 PBS = "https://github.com/astral-sh/python-build-standalone/releases/download/20261110/"
@@ -63,12 +72,13 @@ TRIM = re.compile(
 
 
 class Release:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, top: str = TOP):
         self.zip = zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9)
         self.names = set()
+        self.top = top
 
     def add(self, arc: str, data: bytes, executable: bool = False, symlink: bool = False) -> None:
-        name = f"{TOP}/{arc}"
+        name = f"{self.top}/{arc}" if self.top else arc
         if name in self.names:
             raise SystemExit(f"Duplicate file in the zip: {arc}")
         self.names.add(name)
@@ -156,7 +166,29 @@ def guide(variant: str) -> str:
     return text.replace("\n", "\r\n") if variant != "mac" else text
 
 
+def build_update() -> Path:
+    """Files at the top level, as the in-app updater expects (see server.py)."""
+    import json
+    out = ROOT / "dist" / f"QualCoder-{VERSION}-update.zip"
+    out.parent.mkdir(exist_ok=True)
+    rel = Release(out, top="")
+    rel.add("update.json", json.dumps({"version": VERSION, "full_download_required": FULL_DOWNLOAD_REQUIRED}).encode())
+    rel.add("server.py", (ROOT / "server.py").read_bytes())
+    for f in sorted((ROOT / "app").rglob("*")):
+        if f.is_file() and not f.name.startswith("."):
+            rel.add(f.relative_to(ROOT).as_posix(), f.read_bytes())
+    for v in ("mac", "windows", "plain"):
+        rel.add(f"guides/{v}.txt", guide(v).replace("\r\n", "\n").encode("utf-8"))
+    if (ROOT / "google.json").is_file():
+        rel.add("google.json", (ROOT / "google.json").read_bytes())
+    rel.close()
+    print(f"Built {out.relative_to(ROOT)} ({out.stat().st_size / 1048576:.1f} MB)")
+    return out
+
+
 def build(variant: str) -> Path:
+    if variant == "update":
+        return build_update()
     suffix = {"mac": "Mac", "windows": "Windows", "plain": "needs-Python"}[variant]
     out = ROOT / "dist" / f"QualCoder-{VERSION}-{suffix}.zip"
     out.parent.mkdir(exist_ok=True)
@@ -187,10 +219,10 @@ def build(variant: str) -> Path:
 
 
 def main() -> None:
-    variants = sys.argv[1:] or ["mac", "windows", "plain"]
+    variants = sys.argv[1:] or list(VARIANTS)
     for v in variants:
-        if v not in ("mac", "windows", "plain"):
-            raise SystemExit(f"Unknown download '{v}'. Use mac, windows or plain.")
+        if v not in VARIANTS:
+            raise SystemExit(f"Unknown download '{v}'. Use {', '.join(VARIANTS)}.")
     for v in variants:
         build(v)
 

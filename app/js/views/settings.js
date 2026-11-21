@@ -6,6 +6,7 @@ import {
   esc, fmtDate, plural, toast, confirmDialog, promptDialog, openModal, joinPath, MOD, SHIFT, $, $$,
 } from '../util.js';
 import * as gdrive from '../google.js';
+import { renderUpdateSettings } from '../update.js';
 
 export function render(el) {
   const p = S.project;
@@ -66,6 +67,11 @@ export function render(el) {
     </section>
 
     <section class="set-sec">
+      <h2>Updates <span class="tag">all projects on this computer</span></h2>
+      <div data-update-settings></div>
+    </section>
+
+    <section class="set-sec">
       <h2>Snapshots</h2>
       <p class="muted small">The project is copied to its backups folder every 10 minutes while you work (the last 60 copies are kept). Save a named snapshot before a big change, such as merging codes or starting second-cycle coding.</p>
       <div class="btn-row"><input data-snap-label placeholder="Snapshot name, e.g. End of first-cycle coding" aria-label="Snapshot name"><button class="btn small primary" data-act="snap">Save snapshot</button></div>
@@ -112,6 +118,7 @@ export function render(el) {
   const instr = $('[data-instructions]', root);
   if (instr) bindField(instr, st, 'ai_instructions', { label: 'edit AI instructions' });
   renderGoogleSettings(root);
+  renderUpdateSettings($('[data-update-settings]', root));
 
   if (!S.ai) {
     api('GET', '/ai/status').then((r) => { S.ai = r; if (S.view === 'settings') rerender(); }).catch(() => {});

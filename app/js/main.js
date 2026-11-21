@@ -12,6 +12,7 @@ import * as analyze from './views/analyze.js';
 import * as themes from './views/themes.js';
 import * as exporter from './views/export.js';
 import * as settings from './views/settings.js';
+import { checkForUpdate, onUpdateInfo, openUpdateDialog } from './update.js';
 
 const VIEWS = [
   ['code', 'Code', code],
@@ -28,6 +29,7 @@ function renderTop() {
   const p = S.project;
   $('#topbar').innerHTML = `
     <button class="brand" data-act="home" title="All projects">Qual Coder</button>
+    ${S.update?.available ? `<button class="update-pill" data-act="update" title="Qual Coder ${esc(S.update.latest)} is available">Update available</button>` : ''}
     ${p ? `
       <span class="proj-name" title="${esc(p.name)}">${esc(p.name)}</span>
       ${p.settings.ai_enabled ? '<span class="ai-badge" title="AI suggestions are on for this project">AI on</span>' : ''}
@@ -45,7 +47,7 @@ function renderTop() {
 function renderHome(el) {
   el.innerHTML = `<div class="home"><div class="home-card">
     <h1>Qual Coder</h1>
-    <p class="lede">A local workspace for qualitative coding: codebook, coding, memos, retrieval and second-cycle themes. Projects are saved as files on this Mac.</p>
+    <p class="lede">A local workspace for qualitative coding: codebook, coding, memos, retrieval and second-cycle themes. Projects are saved as files on this computer.</p>
     <form class="new-proj" data-new>
       <input name="name" placeholder="New project name" required aria-label="New project name">
       <button class="btn primary" type="submit">Create project</button>
@@ -95,6 +97,7 @@ function bindShell() {
     else if (t.dataset.act === 'home') goHome();
     else if (t.dataset.act === 'undo') undo();
     else if (t.dataset.act === 'redo') redo();
+    else if (t.dataset.act === 'update') openUpdateDialog();
   });
 
   $('#view').addEventListener('submit', async (e) => {
@@ -175,6 +178,8 @@ async function init() {
     try { await openProject(last); } catch { render(); }
   } else render();
   api('GET', '/ai/status').then((r) => { S.ai = r; }).catch(() => { S.ai = { available: false }; });
+  onUpdateInfo(() => renderTop());
+  checkForUpdate();
 }
 
 init();

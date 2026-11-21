@@ -23,8 +23,8 @@ install.
      "More info", then "Run anyway".
 [[mac]]
   a. Double-click the zip file you downloaded, unless your Mac already
-     unzipped it. A "Qual Coder {VERSION}" folder appears next to it. You can
-     move that folder anywhere you like.
+     unzipped it. A "Qual Coder" folder appears next to it. You can move
+     that folder anywhere you like.
 
   b. In that folder, double-click "Start Qual Coder.command".
 
@@ -91,12 +91,21 @@ Keep research data only where your IRB protocol allows it to be stored.
 
 3. GETTING A NEWER VERSION
 
-Download the new version and use it instead of this one. You can delete
-this folder afterward. Your "Qual Coder Projects" folder is separate, so
-your work isn't touched.
+When a new version comes out, an "Update available" button appears at the
+top of Qual Coder. Click it, then click "Update now". Qual Coder updates
+itself and restarts in a few seconds, and your projects aren't touched.
+To check yourself, open any project and go to Settings > Updates.
+
+Once in a while, a new version needs a fresh download instead. Qual Coder
+says so and links to the download page. Download it, unzip it, and use it
+instead of this folder. Your "Qual Coder Projects" folder is separate, so
+your work carries over.
 [[mac]]
-You'll do the "Open Anyway" step once more for the new version.
+You'll do the "Open Anyway" step once more for a fresh download.
 [[end]]
+
+To find new versions, Qual Coder looks at its page on GitHub. It never
+sends anything about your projects.
 
 
 4. FILES YOU CAN BRING IN
