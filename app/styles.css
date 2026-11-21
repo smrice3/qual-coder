@@ -441,3 +441,10 @@ p.ok { color: var(--ok); }
   .grid2, .grid3 { grid-template-columns: 1fr; }
   .export-item { flex-direction: column; align-items: flex-start; }
 }
+
+/* Update notice */
+.update-pill { border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.update-pill:hover { background: var(--accent); color: var(--accent-ink); }
+.update-notes { margin-top: 10px; }
+.update-notes summary { cursor: pointer; font-weight: 600; }
+.update-notes .notes { white-space: pre-wrap; max-height: 240px; overflow: auto; margin-top: 6px; padding: 8px 10px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; font-size: 12.5px; }

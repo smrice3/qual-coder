@@ -19,3 +19,5 @@ Thumbs.db
 
 # Python builds downloaded by make_release.py
 .release-cache/
+.previous-version/
+.update-staging/

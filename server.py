@@ -17,6 +17,7 @@ from __future__ import annotations
 import argparse
 import base64
 import datetime as dt
+import hashlib
 import io
 import json
 import os
@@ -38,7 +39,7 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-VERSION = "1.2.1"
+VERSION = "1.3.0"
 ROOT = Path(__file__).resolve().parent
 APP_DIR = ROOT / "app"
 DEFAULT_PORT = 4350
@@ -871,6 +872,219 @@ def save_google_config(store: Store, g: dict) -> dict:
 
 
 # --------------------------------------------------------------------------
+# Updates
+#
+# New versions are published as releases of the public GitHub repository
+# smrice3/qual-coder. Each release carries QualCoder-<version>-update.zip: the
+# server, the app, google.json and the guides, without Python or the launchers.
+# Qual Coder looks up the latest release (at most every 6 hours, or when
+# asked); nothing about projects is sent. "Update now" downloads that zip,
+# checks it against the SHA-256 GitHub records for it, keeps the current files
+# in .previous-version/, swaps the new ones in, and restarts. Projects live in
+# the projects folder, so an update never touches them.
+
+UPDATE_URL = os.environ.get("QUALCODER_UPDATE_URL") or "https://api.github.com/repos/smrice3/qual-coder/releases/latest"
+UPDATE_TESTING = bool(os.environ.get("QUALCODER_UPDATE_URL"))  # lets tests use a local http:// release
+UPDATE_EVERY = 6 * 3600
+UPDATE_MAX_BYTES = 20 * 1024 * 1024
+UPDATE_LOCK = threading.Lock()
+INSTALL_LOCK = threading.Lock()
+_update = {"t": 0.0, "info": None, "asset": None}
+RESTART_EXIT_CODE = 3  # the Windows launcher starts Qual Coder again when it exits with this
+UPDATE_FILES = re.compile(r"(server\.py|google\.json|update\.json|guides/(mac|windows|plain)\.txt|app/[A-Za-z0-9_./ -]+)")
+
+
+def parse_version(s: str):
+    m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", (s or "").strip())
+    return tuple(int(x) for x in m.groups()) if m else None
+
+
+def install_kind() -> str:
+    """Which download this copy came from, so the right guide is installed."""
+    if (ROOT / "python" / "python.exe").is_file():
+        return "windows"
+    if (ROOT / "python" / "mac-arm64").is_dir() or (ROOT / "python" / "mac-x86_64").is_dir():
+        return "mac"
+    return "plain"
+
+
+def restart_mode() -> str:
+    if os.environ.get("QUALCODER_RESTART") == "exit" or os.name != "nt":
+        return "auto"
+    return "manual"
+
+
+def _fetch(url: str, limit: int, accept: str):
+    if not (url.startswith("https://") or UPDATE_TESTING):
+        raise HttpError(502, "The update address isn't secure (https), so Qual Coder didn't use it.")
+    req = urllib.request.Request(url, headers={"Accept": accept, "User-Agent": f"QualCoder/{VERSION}"})
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = r.read(limit + 1)
+    if len(data) > limit:
+        raise HttpError(413, "The update is larger than expected, so it wasn't installed.")
+    return data
+
+
+def update_check(force: bool = False) -> dict:
+    with UPDATE_LOCK:
+        if _update["info"] and not force and time.time() - _update["t"] < UPDATE_EVERY:
+            return _update["info"]
+    info = {"current": VERSION, "available": False, "git": (ROOT / ".git").exists(), "restart": restart_mode()}
+    asset = None
+    try:
+        rel = json.loads(_fetch(UPDATE_URL, 2 * 1024 * 1024, "application/vnd.github+json").decode("utf-8"))
+        latest = str(rel.get("tag_name") or "").lstrip("v")
+        newer = parse_version(latest) is not None and parse_version(latest) > (parse_version(VERSION) or (0, 0, 0))
+        asset = next((a for a in rel.get("assets") or [] if a.get("name") == f"QualCoder-{latest}-update.zip"), None)
+        info.update(latest=latest, notes=str(rel.get("body") or "")[:4000],
+                    page=str(rel.get("html_url") or ""), published=str(rel.get("published_at") or ""))
+        if newer:
+            info["available"] = True
+            info["full_download"] = asset is None  # a release without an update zip needs a fresh download
+    except urllib.error.HTTPError as e:
+        info["error"] = "No versions have been published yet." if e.code == 404 else f"GitHub answered with error {e.code}. Try again later."
+    except HttpError as e:
+        info["error"] = e.message
+    except (urllib.error.URLError, OSError, ValueError):
+        info["error"] = "Couldn't reach GitHub to check for updates. Check your internet connection."
+    info["checked"] = iso()
+    with UPDATE_LOCK:
+        _update.update(t=time.time(), info=info, asset=asset)
+    return info
+
+
+def _replace(src: Path, dst: Path) -> None:
+    # Windows refuses to rename a file another program has open for a moment.
+    for attempt in range(10):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == 9:
+                raise
+            time.sleep(0.3)
+
+
+def update_install() -> dict:
+    if not INSTALL_LOCK.acquire(blocking=False):
+        raise HttpError(409, "An update is already being installed.")
+    try:
+        return _update_install()
+    finally:
+        INSTALL_LOCK.release()
+
+
+def _update_install() -> dict:
+    info = update_check(force=True)
+    if info.get("error"):
+        raise HttpError(502, info["error"])
+    if not info.get("available"):
+        raise HttpError(409, "You already have the latest version.")
+    if info.get("git"):
+        raise HttpError(409, "This copy of Qual Coder is a git checkout. Update it with git pull instead.")
+    if info.get("full_download"):
+        raise HttpError(409, "This version needs a fresh download. Get it from the release page.", {"page": info.get("page", "")})
+    latest = info["latest"]
+    asset = _update["asset"] or {}
+    digest = str(asset.get("digest") or "")
+    if not digest.startswith("sha256:"):
+        raise HttpError(502, "GitHub didn't list a checksum for this update, so it wasn't installed.")
+    try:
+        data = _fetch(str(asset.get("browser_download_url") or ""), UPDATE_MAX_BYTES, "application/octet-stream")
+    except (urllib.error.URLError, OSError):
+        raise HttpError(502, "The download didn't finish. Check your internet connection and try again.")
+    if hashlib.sha256(data).hexdigest() != digest.split(":", 1)[1].lower():
+        raise HttpError(502, "The download didn't match its checksum, so it wasn't installed. Try again.")
+
+    try:
+        z = zipfile.ZipFile(io.BytesIO(data))
+    except zipfile.BadZipFile:
+        raise HttpError(502, "The update file is damaged, so it wasn't installed.")
+    names = [n for n in z.namelist() if not n.endswith("/")]
+    bad = [n for n in names if not UPDATE_FILES.fullmatch(n) or ".." in n.split("/")]
+    if bad or "server.py" not in names or "app/index.html" not in names or "update.json" not in names:
+        raise HttpError(502, "The update file isn't laid out as expected, so it wasn't installed.")
+    try:
+        manifest = json.loads(z.read("update.json").decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        raise HttpError(502, "The update file is damaged, so it wasn't installed.")
+    if manifest.get("version") != latest:
+        raise HttpError(502, "The update file is for a different version, so it wasn't installed.")
+    if manifest.get("full_download_required"):
+        raise HttpError(409, "This version needs a fresh download. Get it from the release page.", {"page": info.get("page", "")})
+    new_server = z.read("server.py")
+    if f'VERSION = "{latest}"'.encode() not in new_server:
+        raise HttpError(502, "The update's version number doesn't match, so it wasn't installed.")
+    try:
+        compile(new_server, "server.py", "exec")  # refuse a file this Python can't run
+    except SyntaxError:
+        raise HttpError(502, "The update needs a newer Python than this copy has. Get a fresh download from the release page.", {"page": info.get("page", "")})
+
+    staging = ROOT / ".update-staging"
+    previous = ROOT / ".previous-version"
+    shutil.rmtree(staging, ignore_errors=True)
+    staging.mkdir()
+    for n in names:
+        out = staging.joinpath(*n.split("/"))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(z.read(n))
+    guide = staging / "guides" / f"{install_kind()}.txt"
+
+    # Swap: current files go to .previous-version/, new ones come in. If any
+    # step fails, put everything back.
+    moves = [("server.py", "server.py"), ("app", "app")]
+    if (staging / "google.json").is_file():
+        moves.append(("google.json", "google.json"))
+    shutil.rmtree(previous, ignore_errors=True)
+    previous.mkdir()
+    done = []
+    try:
+        for new_name, cur_name in moves:
+            cur = ROOT / cur_name
+            if cur.exists():
+                _replace(cur, previous / cur_name)
+                done.append(("back", cur_name))
+            _replace(staging / new_name, cur)
+            done.append(("new", cur_name))
+        if guide.is_file():
+            if (ROOT / "READ ME FIRST.txt").exists():
+                shutil.copy2(ROOT / "READ ME FIRST.txt", previous / "READ ME FIRST.txt")
+            text = guide.read_text("utf-8")
+            if install_kind() != "mac":
+                text = text.replace("\r\n", "\n").replace("\n", "\r\n")
+            (ROOT / "READ ME FIRST.txt").write_text(text, "utf-8", newline="")
+    except Exception:
+        for step, name in reversed(done):
+            try:
+                if step == "new":
+                    _replace(ROOT / name, staging / name)
+                else:
+                    _replace(previous / name, ROOT / name)
+            except OSError:
+                pass
+        raise HttpError(500, "The update couldn't be installed, so Qual Coder kept the version you had.")
+    finally:
+        shutil.rmtree(staging, ignore_errors=True)
+    print(f"Updated Qual Coder from {VERSION} to {latest}. The previous version is in {previous}.", flush=True)
+    mode = restart_mode()
+    if mode == "auto":
+        threading.Thread(target=_restart, daemon=True).start()
+    return {"version": latest, "restart": mode}
+
+
+def _restart() -> None:
+    """Start the new version: the Windows launcher reruns Qual Coder when it
+    exits with RESTART_EXIT_CODE; elsewhere this process becomes the new one."""
+    time.sleep(0.8)  # let the response reach the browser
+    print("Restarting Qual Coder…", flush=True)
+    if os.environ.get("QUALCODER_RESTART") == "exit":
+        os._exit(RESTART_EXIT_CODE)
+    os.environ["QUALCODER_RESTARTED"] = "1"
+    args = [a for a in getattr(sys, "orig_argv", [sys.executable] + sys.argv) if a != "--open"]
+    os.execv(sys.executable, args)
+
+
+# --------------------------------------------------------------------------
 # HTTP
 
 class Handler(SimpleHTTPRequestHandler):
@@ -998,6 +1212,12 @@ class Handler(SimpleHTTPRequestHandler):
             if Path(filename).suffix.lower() == ".zip":
                 return extract_zip(data)
             return extract(filename, data)
+        if parts == ["update"] and method == "GET":
+            return update_check()
+        if parts == ["update", "check"] and method == "POST":
+            return update_check(force=True)
+        if parts == ["update", "install"] and method == "POST":
+            return update_install()
         if parts == ["config"] and method == "GET":
             return {"google": google_config(s)}
         if parts == ["config"] and method == "PUT":
@@ -1036,6 +1256,7 @@ def main() -> None:
                          "or the QUALCODER_DATA environment variable)")
     ap.add_argument("--open", action="store_true", help="open the app in your browser")
     a = ap.parse_args()
+    restarted = os.environ.pop("QUALCODER_RESTARTED", "") == "1"
     data_dir = Path(a.data).expanduser() if a.data else default_data_dir()
     Handler.store = Store(data_dir.resolve())
 
@@ -1047,18 +1268,22 @@ def main() -> None:
             if a.open:
                 webbrowser.open(url)
             return
-        try:
-            httpd = Server(("127.0.0.1", port), Handler)
+        # Right after an update the old copy may hold the port for a moment.
+        for attempt in range(25 if restarted and port == a.port else 1):
+            try:
+                httpd = Server(("127.0.0.1", port), Handler)
+                break
+            except OSError:
+                time.sleep(0.2)
+        if httpd is not None:
             break
-        except OSError:
-            continue
     if httpd is None:
         sys.exit(f"Couldn't find a free port between {a.port} and {a.port + 9}.")
     url = f"http://localhost:{httpd.server_address[1]}/"
     print(f"Qual Coder {VERSION} is running at {url}")
     print(f"Projects folder: {Handler.store.dir}")
     print("Leave this window open while you work. Close it (or press Ctrl+C) to stop Qual Coder.", flush=True)
-    if a.open:
+    if a.open or (restarted and httpd.server_address[1] != a.port):
         webbrowser.open(url)
     try:
         httpd.serve_forever()
